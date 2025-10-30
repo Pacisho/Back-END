@@ -25,6 +25,29 @@ app.get('/ping', async (req, res) => {
   }
 });
 
+// GET users
+app.get('/users', async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM tbl_users');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Query failed' });
+  }
+});
+
+// GET /users/:id - ดึงข้อมูลผู้ใช้ตาม id
+app.get('/users/:id', async (req, res, next) => {
+  const { id } = req.params; // ดึง id จาก URL เช่น /users/3
+  try {
+    const [rows] = await db.query('SELECT * FROM tbl_users WHERE id = 2', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(rows[0]); // ส่งผู้ใช้คนเดียวกลับไป
+  } catch (err) {
+    next(err);
+  }
+});
 // เริ่มเซิร์ฟเวอร์
 const PORT = process.env.PORT || 3005;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
