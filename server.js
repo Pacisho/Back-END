@@ -3,6 +3,7 @@ require('dotenv').config(); // โหลดค่าจาก .env
 const express = require('express');
 const mysql = require('mysql2/promise');
 const app = express();
+const bcrypt = require('bcrypt');
 
 app.use(express.json());
 
@@ -46,6 +47,73 @@ app.get('/users/:id', async (req, res, next) => {
     res.json(rows[0]); // ส่งผู้ใช้คนเดียวกลับไป
   } catch (err) {
     next(err);
+  }
+});
+
+//POST: เพิ่มผู้ใช้ใหม่ พร้อม hash password
+app.post('/users', async (req, res) => {
+  const { firstname, fullname, lastname, password } = req.body;
+
+  try {
+    if (!password) return res.status(400).json({ error: 'Password is required' });
+
+    // เข้ารหัส password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const [result] = await db.query(
+      'INSERT INTO tbl_users (firstname, fullname, lastname, password) VALUES (?, ?, ?, ?)',
+      [firstname, fullname, lastname, hashedPassword]
+    );
+
+    res.json({ id: result.insertId, firstname, fullname, lastname });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Insert failed' });
+  }
+});
+
+// PUT: อัปเดตข้อมูลผู้ใช้ + เปลี่ยนรหัสผ่านถ้ามีส่งมา
+app.put('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { firstname, fullname, lastname, password } = req.body;
+
+  try {
+    let query = 'UPDATE tbl_users SET firstname = ?, fullname = ?, lastname = ?';
+    const params = [firstname, fullname, lastname];
+
+    // ถ้ามี password ใหม่ให้ hash แล้วอัปเดตด้วย
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query += ', password = ?';
+      params.push(hashedPassword);
+    }
+
+    query += ' WHERE id = ?';
+    params.push(id);
+
+    const [result] = await db.query(query, params);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ message: 'User updated successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Update failed' });
+  }
+});
+
+// DELETE user
+app.delete('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query('DELETE FROM tbl_users WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Delete failed' });
   }
 });
 // เริ่มเซิร์ฟเวอร์
